@@ -1,0 +1,60 @@
+/* General Page Styling */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: #f4f6f9;
+    color: #2c3e50;
+    text-align: center;
+}
+
+/* Header */
+h1, h2 {
+    color: #34495e;
+    margin-top: 20px;
+}
+
+/* Links */
+a {
+    display: inline-block;
+    margin: 10px;
+    padding: 10px 20px;
+    text-decoration: none;
+    background: #3498db;
+    color: white;
+    border-radius: 8px;
+    transition: 0.3s;
+}
+
+a:hover {
+    background: #2980b9;
+}
+
+/* Table */
+table {
+    width: 80%;
+    margin: 20px auto;
+    border-collapse: collapse;
+    background: white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+th, td {
+    padding: 12px;
+    border-bottom: 1px solid #ddd;
+}
+
+th {
+    background: #3498db;
+    color: white;
+}
+
+.Low { background: #f8d7da; }    /* red-ish */
+.Normal { background: #d4edda; } /* green-ish */
+.High { background: #fff3cd; }   /* yellow-ish */
+
+/* Chart Container */
+#chart-container {
+    width: 80%;
+    margin: 20px auto;
+}

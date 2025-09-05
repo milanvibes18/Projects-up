@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Devices - Digital Twin</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        h2 { color: #2c3e50; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ccc;
+            text-align: center;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+        tr:nth-child(even) { background: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <nav>
+      <a href="/">🏠 Home</a> |
+      <a href="/devices_view">📋 Devices</a> |
+      <a href="/dashboard">📊 Dashboard</a>
+    </nav>
+    <hr>
+
+    <h2>Available Devices</h2>
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Model</th>
+            <th>Location</th>
+            <th>Timezone</th>
+            <th>Firmware</th>
+            <th>Sampling Rate (s)</th>
+        </tr>
+        {% for d in devices %}
+        <tr>
+            <td>{{ d.id }}</td>
+            <td>{{ d.name }}</td>
+            <td>{{ d.type }}</td>
+            <td>{{ d.model or "-" }}</td>
+            <td>{{ d.location or "-" }}</td>
+            <td>{{ d.timezone or "-" }}</td>
+            <td>{{ d.firmware or "-" }}</td>
+            <td>{{ d.sampling_rate or "-" }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
