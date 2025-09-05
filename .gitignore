@@ -1,16 +1,55 @@
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.env
+*.py[cod]
+*$py.class
+
+# Virtual environments
 .venv/
 env/
 venv/
+ENV/
 
-# VS Code
+# VS Code settings
 .vscode/
 
-# OS
+# Python distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.coverage
+.tox/
+.nox/
+.cache/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# OS files
 .DS_Store
 Thumbs.db
+
+# Logs and databases
+*.log
+*.sqlite3
+*.db
+
+# Ignore environment variables file
+.env
