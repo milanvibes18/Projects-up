@@ -75,8 +75,12 @@ digital-twin-project/
 
 ## 📸 Screenshots (Optional)
 
-![Dashboard Screenshot](path/to/your/dashboard_screenshot.png)
-![Chart Screenshot](path/to/your/chart_screenshot.png)
+<img width="1475" height="529" alt="image" src="https://github.com/user-attachments/assets/8266212a-d1b1-415e-9b73-ef2a454d33f7" />
+<img width="1486" height="535" alt="image" src="https://github.com/user-attachments/assets/63c2ee25-719f-40a7-8967-8583d6a15c1a" />
+<img width="1919" height="873" alt="Screenshot 2025-09-06 103308" src="https://github.com/user-attachments/assets/a5267def-338d-4364-8c8f-1d408e8c9846" />
+<img width="1917" height="844" alt="Screenshot 2025-09-06 103323" src="https://github.com/user-attachments/assets/838c07af-911a-476f-94c1-bc31c19f1e0f" />
+<img width="1917" height="646" alt="Screenshot 2025-09-06 103335" src="https://github.com/user-attachments/assets/137e1766-414c-4d85-b309-f7d919fa4283" />
+
 
 ---
 
