@@ -1,0 +1,14 @@
+# environment.yml
+name: Projects-up
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pandas
+  - numpy
+  - matplotlib
+  - scikit-learn
+  - joblib
+  - flask
+  - sqlalchemy
