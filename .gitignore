@@ -1,0 +1,14 @@
+# Ignore Python virtual environments
+.venv/
+
+# Ignore database files
+*.db
+
+# Ignore build artifacts and binaries
+*.exe
+
+# Ignore BFG report folder
+..bfg-report/
+
+# Ignore IDE/editor settings
+.vscode/
