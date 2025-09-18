@@ -8,9 +8,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any, Callable
 from collections import defaultdict, deque
-from email.mime.text import MimeText
-from email.mime.multipart import MimeMultipart
-from email.mime.base import MimeBase
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
 from email import encoders
 import threading
 import queue

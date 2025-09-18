@@ -15,11 +15,10 @@ warnings.filterwarnings('ignore')
 # Import configuration
 import sys
 sys.path.append('.')
-# Assuming CONFIG/app_config.py exists with a similar structure
-# For this example, we'll create a dummy config
+# Corrected AppConfig to point to the correct database path
 class AppConfig:
     class Database:
-        primary_path = 'DATA/digital_twin_data.db'
+        primary_path = 'DATABASE/health_data.db' # <--- CORRECTED PATH
     database = Database()
 config = AppConfig()
 
@@ -648,6 +647,8 @@ def main():
         for col in ['timestamp', 'device_id', 'device_type', 'value', 'status', 'health_score']:
             if col in sample.columns:
                 print(f"  {col}: {sample[col].tolist()}")
+
+
 
 if __name__ == "__main__":
     main()
