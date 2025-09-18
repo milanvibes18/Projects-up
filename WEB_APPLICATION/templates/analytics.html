@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Analytics - Digital Twin System</title>
+    
+    <!-- CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+    
+    <!-- Chart.js and plugins -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-date-fns/2.0.0/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    
+    <style>
+        .analytics-container {
+            background: var(--card-bg);
+            border-radius: var(--border-radius-lg);
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+            min-height: 450px;
+        }
+        
+        .analytics-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--border-color);
+        }
+        
+        .analytics-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .metric-selector {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .metric-btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-muted);
+            border-radius: var(--border-radius);
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        
+        .metric-btn.active,
+        .metric-btn:hover {
+            background: var(--secondary-color);
+            color: white;
+            border-color: var(--secondary-color);
+        }
+        
+        .statistics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: var(--surface-bg);
+            border-radius: var(--border-radius);
+            padding: 20px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            transition: all var(--transition-normal);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--secondary-color);
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .correlation-matrix {
+            background: var(--surface-bg);
+            border-radius: var(--border-radius);
+            padding: 15px;
+            margin-top: 15px;
+        }
+        
+        .correlation-cell {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            margin: 2px;
+            border-radius: 3px;
+            text-align: center;
+            line-height: 30px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .anomaly-timeline {
+            background: var(--surface-bg);
+            border-radius: var(--border-radius);
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .anomaly-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .anomaly-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        
+        .anomaly-high { background: var(--accent-color); }
+        .anomaly-medium { background: var(--warning-color); }
+        .anomaly-low { background: var(--info-color); }
+        
+        .anomaly-content {
+            flex: 1;
+        }
+        
+        .anomaly-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+        
+        .anomaly-details {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        
+        .predictive-panel {
+            background: linear-gradient(135deg, var(--info-color), var(--secondary-color));
+            color: white;
+            border-radius: var(--border-radius-lg);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .prediction-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .prediction-item:last-child {
+            border-bottom: none;
+        }
+        
+        .trend-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .trend-up {
+            background: rgba(39, 174, 96, 0.2);
+            color: var(--success-color);
+        }
+        
+        .trend-down {
+            background: rgba(231, 76, 60, 0.2);
+            color: var(--accent-color);
+        }
+        
+        .trend-stable {
+            background: rgba(243, 156, 18, 0.2);
+            color: var(--warning-color);
+        }
+        
+        .time-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .time-preset {
+            padding: 8px 15px;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-muted);
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        
+        .time-preset.active,
+        .time-preset:hover {
+            background: var(--secondary-color);
+            color: white;
+            border-color: var(--secondary-color);
+        }
+        
+        .export-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        @media (max-width: 768px) {
+            .analytics-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 15px;
+            }
+            
+            .metric-selector {
+                justify-content: center;
+            }
+            
+            .statistics-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+            
+            .time-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .export-controls {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="main-container">
+            <!-- Header -->
+            <div class="header">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h1><i class="fas fa-chart-line"></i> Advanced Analytics Dashboard</h1>
+                        <p class="mb-0">Deep Insights & Predictive Analytics for Digital Twin System</p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <div class="d-flex align-items-center justify-content-end">
+                            <span class="status-indicator status-online"></span>
+                            <span id="connection-status">Connected</span>
+                            <small class="ms-3">Processing: <span id="processing-status">Real-time</span></small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="container-fluid p-4">
+                <!-- Time Controls -->
+                <div class="time-controls">
+                    <strong>Time Range:</strong>
+                    <button class="time-preset active" onclick="setTimeRange('1h', event)">1 Hour</button>
+                    <button class="time-preset" onclick="setTimeRange('6h', event)">6 Hours</button>
+                    <button class="time-preset" onclick="setTimeRange('24h', event)">24 Hours</button>
+                    <button class="time-preset" onclick="setTimeRange('7d', event)">7 Days</button>
+                    <button class="time-preset" onclick="setTimeRange('30d', event)">30 Days</button>
+                    
+                    <div class="ms-auto export-controls">
+                        <button class="btn btn-outline-primary btn-sm" onclick="exportAnalytics()">
+                            <i class="fas fa-download"></i> Export Data
+                        </button>
+                        <button class="btn btn-primary btn-sm" onclick="refreshAnalytics()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Predictive Analytics Panel -->
+                <div class="predictive-panel">
+                    <h4><i class="fas fa-crystal-ball"></i> Predictive Analytics</h4>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="prediction-item">
+                                <div>
+                                    <strong>System Health Forecast</strong><br>
+                                    <small>Next 24 hours</small>
+                                </div>
+                                <div class="text-end">
+                                    <div class="h4 mb-0" id="health-prediction">--</div>
+                                    <div class="trend-indicator trend-up" id="health-trend">
+                                        <i class="fas fa-arrow-up"></i> Improving
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="prediction-item">
+                                <div>
+                                    <strong>Energy Optimization</strong><br>
+                                    <small>Potential savings</small>
+                                </div>
+                                <div class="text-end">
+                                    <div class="h4 mb-0" id="energy-savings">--</div>
+                                    <div class="trend-indicator trend-down" id="energy-trend">
+                                        <i class="fas fa-arrow-down"></i> -12% Cost
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="prediction-item">
+                                <div>
+                                    <strong>Maintenance Alert</strong><br>
+                                    <small>Next required service</small>
+                                </div>
+                                <div class="text-end">
+                                    <div class="h4 mb-0" id="maintenance-days">--</div>
+                                    <div class="trend-indicator trend-stable" id="maintenance-trend">
+                                        <i class="fas fa-wrench"></i> Scheduled
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Analytics Grid -->
+                <div class="row">
+                    <!-- Time Series Analysis -->
+                    <div class="col-xl-8">
+                        <div class="analytics-container">
+                            <div class="analytics-header">
+                                <div class="analytics-title">
+                                    <i class="fas fa-wave-square"></i>
+                                    Multi-Variate Time Series Analysis
+                                </div>
+                                <div class="metric-selector">
+                                    <button class="metric-btn active" onclick="selectMetric('temperature', event)">Temperature</button>
+                                    <button class="metric-btn" onclick="selectMetric('pressure', event)">Pressure</button>
+                                    <button class="metric-btn" onclick="selectMetric('vibration', event)">Vibration</button>
+                                    <button class="metric-btn" onclick="selectMetric('power', event)">Power</button>
+                                    <button class="metric-btn" onclick="selectMetric('all', event)">All Metrics</button>
+                                </div>
+                            </div>
+                            <canvas id="timeseries-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Statistical Summary -->
+                    <div class="col-xl-4">
+                        <div class="analytics-container">
+                            <div class="analytics-title mb-3">
+                                <i class="fas fa-calculator"></i>
+                                Statistical Summary
+                            </div>
+                            <div class="statistics-grid">
+                                <div class="stat-card">
+                                    <div class="stat-value" id="mean-value">--</div>
+                                    <div class="stat-label">Mean</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value" id="std-value">--</div>
+                                    <div class="stat-label">Std Dev</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value" id="min-value">--</div>
+                                    <div class="stat-label">Minimum</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value" id="max-value">--</div>
+                                    <div class="stat-label">Maximum</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value" id="range-value">--</div>
+                                    <div class="stat-label">Range</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value" id="cv-value">--</div>
+                                    <div class="stat-label">CV %</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- Correlation Analysis -->
+                    <div class="col-md-6">
+                        <div class="analytics-container">
+                            <div class="analytics-title mb-3">
+                                <i class="fas fa-project-diagram"></i>
+                                Correlation Analysis
+                            </div>
+                            <canvas id="correlation-chart"></canvas>
+                            <div class="correlation-matrix" id="correlation-matrix">
+                                <div class="loading-spinner"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Frequency Analysis -->
+                    <div class="col-md-6">
+                        <div class="analytics-container">
+                            <div class="analytics-title mb-3">
+                                <i class="fas fa-signal"></i>
+                                Frequency Domain Analysis
+                            </div>
+                            <canvas id="fft-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- Anomaly Detection -->
+                    <div class="col-md-8">
+                        <div class="analytics-container">
+                            <div class="analytics-title mb-3">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                Anomaly Detection Timeline
+                            </div>
+                            <canvas id="anomaly-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Anomaly List -->
+                    <div class="col-md-4">
+                        <div class="analytics-container">
+                            <div class="analytics-title mb-3">
+                                <i class="fas fa-list"></i>
+                                Recent Anomalies
+                            </div>
+                            <div class="anomaly-timeline" id="anomaly-timeline">
+                                <div class="loading-spinner"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- Distribution Analysis -->
+                    <div class="col-md-6">
+                        <div class="analytics-container">
+                            <div class="analytics-title mb-3">
+                                <i class="fas fa-chart-bar"></i>
+                                Distribution Analysis
+                            </div>
+                            <canvas id="distribution-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Performance Metrics -->
+                    <div class="col-md-6">
+                        <div class="analytics-container">
+                            <div class="analytics-title mb-3">
+                                <i class="fas fa-tachometer-alt"></i>
+                                Performance Metrics
+                            </div>
+                            <canvas id="performance-radar"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="footer">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p>&copy; 2025 Digital Twin System | Advanced Analytics Module</p>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <small>
+                            Analytics Engine v1.0 | Last analysis: <span id="analysis-timestamp">--</span>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Analytics Dashboard JavaScript
+        let socket;
+        let analyticsCharts = {};
+        let currentTimeRange = '1h';
+        let currentMetric = 'temperature';
+        let analyticsData = {};
+
+        // Initialize Analytics Dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeSocket();
+            initializeCharts();
+            loadAnalyticsData();
+            startAnalyticsUpdates();
+            console.log('Analytics Dashboard initializing...');
+        });
+
+        // WebSocket Connection
+        function initializeSocket() {
+            socket = io();
+            
+            socket.on('connect', function() {
+                document.getElementById('connection-status').textContent = 'Connected';
+                document.querySelector('.status-indicator').className = 'status-indicator status-online';
+            });
+            
+            socket.on('disconnect', function() {
+                document.getElementById('connection-status').textContent = 'Disconnected';
+                document.querySelector('.status-indicator').className = 'status-indicator status-error';
+            });
+            
+            socket.on('analytics_update', function(data) {
+                updateAnalyticsDisplay(data);
+            });
+        }
+
+        // Initialize Charts
+        function initializeCharts() {
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: '#ecf0f1' } }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#ecf0f1' },
+                        grid: { color: 'rgba(255,255,255,0.1)' }
+                    },
+                    y: {
+                        ticks: { color: '#ecf0f1' },
+                        grid: { color: 'rgba(255,255,255,0.1)' }
+                    }
+                }
+            };
+
+            // Time Series Chart
+            const tsCtx = document.getElementById('timeseries-chart').getContext('2d');
+            analyticsCharts.timeseries = new Chart(tsCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: []
+                },
+                options: {
+                    ...commonOptions,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    scales: {
+                        ...commonOptions.scales,
+                        x: {
+                            ...commonOptions.scales.x,
+                            type: 'time',
+                            time: {
+                                displayFormats: {
+                                    hour: 'HH:mm',
+                                    day: 'MMM DD'
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Correlation Chart
+            const corrCtx = document.getElementById('correlation-chart').getContext('2d');
+            analyticsCharts.correlation = new Chart(corrCtx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Correlation',
+                        data: [],
+                        backgroundColor: 'rgba(52, 152, 219, 0.6)',
+                        borderColor: '#3498db'
+                    }]
+                },
+                options: commonOptions
+            });
+
+            // FFT Chart
+            const fftCtx = document.getElementById('fft-chart').getContext('2d');
+            analyticsCharts.fft = new Chart(fftCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Power Spectral Density',
+                        data: [],
+                        borderColor: '#e74c3c',
+                        backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                        fill: true
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        x: {
+                            ...commonOptions.scales.x,
+                            title: {
+                                display: true,
+                                text: 'Frequency (Hz)',
+                                color: '#ecf0f1'
+                            }
+                        },
+                        y: {
+                            ...commonOptions.scales.y,
+                            title: {
+                                display: true,
+                                text: 'Magnitude',
+                                color: '#ecf0f1'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Anomaly Chart
+            const anomalyCtx = document.getElementById('anomaly-chart').getContext('2d');
+            analyticsCharts.anomaly = new Chart(anomalyCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Normal Data',
+                            data: [],
+                            borderColor: '#27ae60',
+                            backgroundColor: 'rgba(39, 174, 96, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Anomalies',
+                            data: [],
+                            borderColor: '#e74c3c',
+                            backgroundColor: '#e74c3c',
+                            type: 'scatter',
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        }
+                    ]
+                },
+                options: commonOptions
+            });
+
+            // Distribution Chart
+            const distCtx = document.getElementById('distribution-chart').getContext('2d');
+            analyticsCharts.distribution = new Chart(distCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Frequency',
+                        data: [],
+                        backgroundColor: 'rgba(155, 89, 182, 0.8)',
+                        borderColor: '#9b59b6',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        x: {
+                            ...commonOptions.scales.x,
+                            title: {
+                                display: true,
+                                text: 'Value Range',
+                                color: '#ecf0f1'
+                            }
+                        },
+                        y: {
+                            ...commonOptions.scales.y,
+                            title: {
+                                display: true,
+                                text: 'Frequency',
+                                color: '#ecf0f1'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Performance Radar Chart
+            const perfCtx = document.getElementById('performance-radar').getContext('2d');
+            analyticsCharts.performance = new Chart(perfCtx, {
+                type: 'radar',
+                data: {
+                    labels: ['Efficiency', 'Reliability', 'Energy', 'Quality', 'Maintenance', 'Safety'],
+                    datasets: [{
+                        label: 'Current Performance',
+                        data: [0, 0, 0, 0, 0, 0],
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                        pointBackgroundColor: '#3498db'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#ecf0f1' } }
+                    },
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { color: '#ecf0f1' },
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            pointLabels: { color: '#ecf0f1' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load Analytics Data
+        function loadAnalyticsData() {
+            document.getElementById('processing-status').textContent = 'Loading...';
+            
+            Promise.all([
+                fetch(`/api/analytics/timeseries?range=${currentTimeRange}&metric=${currentMetric}`),
+                fetch(`/api/analytics/statistics?range=${currentTimeRange}&metric=${currentMetric}`),
+                fetch(`/api/analytics/correlations?range=${currentTimeRange}`),
+                fetch(`/api/analytics/anomalies?range=${currentTimeRange}`),
+                fetch(`/api/analytics/predictions`),
+                fetch(`/api/analytics/performance`)
+            ]).then(responses => {
+                return Promise.all(responses.map(r => r.json()));
+            }).then(([timeseries, statistics, correlations, anomalies, predictions, performance]) => {
+                updateTimeSeriesChart(timeseries);
+                updateStatistics(statistics);
+                updateCorrelations(correlations);
+                updateAnomalies(anomalies);
+                updatePredictions(predictions);
+                updatePerformanceRadar(performance);
+                document.getElementById('processing-status').textContent = 'Real-time';
+                updateTimestamp();
+            }).catch(error => {
+                console.error('Error loading analytics data:', error);
+                document.getElementById('processing-status').textContent = 'Error';
+            });
+        }
+
+        // Update Functions
+        function updateTimeSeriesChart(data) {
+            const chart = analyticsCharts.timeseries;
+            if (!chart || !data) return;
+
+            chart.data.labels = data.timestamps || [];
+            chart.data.datasets = [];
+
+            if (currentMetric === 'all') {
+                const colors = ['#3498db', '#e74c3c', '#f39c12', '#27ae60'];
+                const metrics = ['temperature', 'pressure', 'vibration', 'power'];
+                
+                metrics.forEach((metric, index) => {
+                    if (data[metric]) {
+                        chart.data.datasets.push({
+                            label: metric.charAt(0).toUpperCase() + metric.slice(1),
+                            data: data[metric],
+                            borderColor: colors[index],
+                            backgroundColor: colors[index] + '20',
+                            tension: 0.4
+                        });
+                    }
+                });
+            } else {
+                chart.data.datasets.push({
+                    label: currentMetric.charAt(0).toUpperCase() + currentMetric.slice(1),
+                    data: data.values || [],
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                });
+            }
+
+            chart.update();
+        }
+
+        function updateStatistics(data) {
+            if (!data) return;
+
+            document.getElementById('mean-value').textContent = 
+                data.mean ? data.mean.toFixed(2) : '--';
+            document.getElementById('std-value').textContent = 
+                data.std ? data.std.toFixed(2) : '--';
+            document.getElementById('min-value').textContent = 
+                data.min ? data.min.toFixed(2) : '--';
+            document.getElementById('max-value').textContent = 
+                data.max ? data.max.toFixed(2) : '--';
+            document.getElementById('range-value').textContent = 
+                data.range ? data.range.toFixed(2) : '--';
+            document.getElementById('cv-value').textContent = 
+                data.cv ? (data.cv * 100).toFixed(1) : '--';
+        }
+
+        function updateCorrelations(data) {
+            if (!data) return;
+
+            const chart = analyticsCharts.correlation;
+            if (chart && data.scatter_data) {
+                chart.data.datasets[0].data = data.scatter_data;
+                chart.update();
+            }
+
+            // Update correlation matrix
+            const matrix = document.getElementById('correlation-matrix');
+            if (data.matrix) {
+                matrix.innerHTML = '';
+                data.matrix.forEach(row => {
+                    const rowDiv = document.createElement('div');
+                    row.forEach(value => {
+                        const cell = document.createElement('div');
+                        cell.className = 'correlation-cell';
+                        cell.textContent = value.toFixed(2);
+                        cell.style.backgroundColor = getCorrelationColor(value);
+                        rowDiv.appendChild(cell);
+                    });
+                    matrix.appendChild(rowDiv);
+                });
+            }
+        }
+
+        function updateAnomalies(data) {
+            if (!data) return;
+
+            // Update anomaly chart
+            const chart = analyticsCharts.anomaly;
+            if (chart && data.timeseries) {
+                chart.data.labels = data.timestamps || [];
+                chart.data.datasets[0].data = data.normal_data || [];
+                chart.data.datasets[1].data = data.anomaly_points || [];
+                chart.update();
+            }
+
+            // Update anomaly timeline
+            const timeline = document.getElementById('anomaly-timeline');
+            if (data.anomalies) {
+                timeline.innerHTML = '';
+                data.anomalies.slice(0, 10).forEach(anomaly => {
+                    const item = document.createElement('div');
+                    item.className = 'anomaly-item';
+                    item.innerHTML = `
+                        <div class="anomaly-indicator anomaly-${anomaly.severity || 'medium'}"></div>
+                        <div class="anomaly-content">
+                            <div class="anomaly-title">${anomaly.device_id} - ${anomaly.metric}</div>
+                            <div class="anomaly-details">
+                                Value: ${anomaly.value} (Expected: ${anomaly.expected})<br>
+                                <small>${formatTime(anomaly.timestamp)}</small>
+                            </div>
+                        </div>
+                    `;
+                    timeline.appendChild(item);
+                });
+            }
+        }
+
+        function updatePredictions(data) {
+            if (!data) return;
+
+            document.getElementById('health-prediction').textContent = 
+                data.health_forecast ? Math.round(data.health_forecast) + '%' : '--';
+            document.getElementById('energy-savings').textContent = 
+                data.energy_savings ? ' + Math.round(data.energy_savings) : '--';
+            document.getElementById('maintenance-days').textContent = 
+                data.maintenance_days ? data.maintenance_days + ' days' : '--';
+
+            // Update trend indicators
+            updateTrendIndicator('health-trend', data.health_trend);
+            updateTrendIndicator('energy-trend', data.energy_trend);
+            updateTrendIndicator('maintenance-trend', data.maintenance_trend);
+        }
+
+        function updatePerformanceRadar(data) {
+            const chart = analyticsCharts.performance;
+            if (!chart || !data) return;
+
+            chart.data.datasets[0].data = [
+                data.efficiency || 0,
+                data.reliability || 0,
+                data.energy || 0,
+                data.quality || 0,
+                data.maintenance || 0,
+                data.safety || 0
+            ];
+            chart.update();
+        }
+
+        function updateDistribution(data) {
+            const chart = analyticsCharts.distribution;
+            if (!chart || !data) return;
+
+            chart.data.labels = data.bins || [];
+            chart.data.datasets[0].data = data.frequencies || [];
+            chart.update();
+        }
+
+        function updateFFTChart(data) {
+            const chart = analyticsCharts.fft;
+            if (!chart || !data) return;
+
+            chart.data.labels = data.frequencies || [];
+            chart.data.datasets[0].data = data.magnitudes || [];
+            chart.update();
+        }
+
+        // Utility Functions
+        function getCorrelationColor(value) {
+            const abs = Math.abs(value);
+            if (abs > 0.8) return value > 0 ? '#27ae60' : '#e74c3c';
+            if (abs > 0.6) return value > 0 ? '#2ecc71' : '#ec7063';
+            if (abs > 0.4) return value > 0 ? '#f39c12' : '#f8c471';
+            return '#95a5a6';
+        }
+
+        function updateTrendIndicator(elementId, trend) {
+            const element = document.getElementById(elementId);
+            if (!element || !trend) return;
+
+            element.className = `trend-indicator trend-${trend.direction}`;
+            element.innerHTML = `
+                <i class="fas fa-arrow-${trend.direction === 'up' ? 'up' : trend.direction === 'down' ? 'down' : 'right'}"></i>
+                ${trend.text}
+            `;
+        }
+
+        function formatTime(timestamp) {
+            if (!timestamp) return '--';
+            return new Date(timestamp).toLocaleString();
+        }
+
+        function updateTimestamp() {
+            const now = new Date();
+            document.getElementById('analysis-timestamp').textContent = now.toLocaleString();
+        }
+
+        // Control Functions
+        function setTimeRange(range, evt) {
+            currentTimeRange = range;
+            
+            // Update button states
+            document.querySelectorAll('.time-preset').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            if (evt && evt.target) evt.target.classList.add('active');
+            
+            loadAnalyticsData();
+        }
+
+        function selectMetric(metric, evt) {
+            currentMetric = metric;
+            
+            // Update button states
+            document.querySelectorAll('.metric-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            if (evt && evt.target) evt.target.classList.add('active');
+            
+            // Reload time series data
+            fetch(`/api/analytics/timeseries?range=${currentTimeRange}&metric=${metric}`)
+                .then(response => response.json())
+                .then(data => {
+                    updateTimeSeriesChart(data);
+                    // Also update FFT and distribution for single metrics
+                    if (metric !== 'all') {
+                        updateFFTChart(data.fft);
+                        updateDistribution(data.distribution);
+                    }
+                })
+                .catch(error => console.error('Error loading metric data:', error));
+
+            // Update statistics for current metric
+            fetch(`/api/analytics/statistics?range=${currentTimeRange}&metric=${metric}`)
+                .then(response => response.json())
+                .then(data => updateStatistics(data))
+                .catch(error => console.error('Error loading statistics:', error));
+        }
+
+        function refreshAnalytics() {
+            const refreshBtn = event.currentTarget;
+            refreshBtn.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Refreshing...';
+            refreshBtn.disabled = true;
+            
+            loadAnalyticsData().finally(() => {
+                refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
+                refreshBtn.disabled = false;
+            });
+        }
+
+        function exportAnalytics() {
+            const format = 'csv'; // Could be made configurable
+            const params = new URLSearchParams({
+                format: format,
+                range: currentTimeRange,
+                metric: currentMetric,
+                type: 'analytics'
+            });
+            
+            fetch(`/api/export_analytics?${params}`)
+                .then(response => response.blob())
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `analytics_${currentMetric}_${currentTimeRange}_${new Date().toISOString().split('T')[0]}.${format}`;
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                })
+                .catch(error => {
+                    console.error('Export failed:', error);
+                    alert('Export failed. Please try again.');
+                });
+        }
+
+        // Real-time Updates
+        function startAnalyticsUpdates() {
+            // Update analytics data every 60 seconds
+            setInterval(() => {
+                loadAnalyticsData();
+            }, 60000);
+        }
+
+        function updateAnalyticsDisplay(data) {
+            if (data.type === 'realtime_update') {
+                // Update current metric if it matches
+                if (data.metric === currentMetric || currentMetric === 'all') {
+                    updateTimeSeriesChart(data.timeseries);
+                }
+                
+                // Update statistics
+                if (data.statistics) {
+                    updateStatistics(data.statistics);
+                }
+                
+                // Update predictions
+                if (data.predictions) {
+                    updatePredictions(data.predictions);
+                }
+            }
+        }
+
+        // Error Handling
+        window.addEventListener('error', function(e) {
+            console.error('Analytics Dashboard Error:', e.error);
+            document.getElementById('processing-status').textContent = 'Error';
+        });
+    </script>
+</body>
+</html>

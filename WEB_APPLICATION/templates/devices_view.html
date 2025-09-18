@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Management - Digital Twin System</title>
+    
+    <!-- CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+    
+    <!-- Chart.js and Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    
+    <style>
+        .devices-container {
+            background: var(--card-bg);
+            border-radius: var(--border-radius-lg);
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .device-search-bar {
+            background: var(--surface-bg);
+            border-radius: var(--border-radius);
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .search-input {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: var(--border-radius);
+            padding: 8px 15px;
+            width: 100%;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+        
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .filter-btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-muted);
+            border-radius: var(--border-radius);
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        
+        .filter-btn.active,
+        .filter-btn:hover {
+            background: var(--secondary-color);
+            color: white;
+            border-color: var(--secondary-color);
+        }
+        
+        .devices-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        
+        .device-card {
+            background: var(--card-bg);
+            border-radius: var(--border-radius-lg);
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            transition: all var(--transition-normal);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .device-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--success-color);
+            transition: background-color var(--transition-fast);
+        }
+        
+        .device-card.warning::before { background: var(--warning-color); }
+        .device-card.critical::before { background: var(--accent-color); }
+        .device-card.offline::before { background: var(--text-muted); }
+        
+        .device-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        
+        .device-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 15px;
+        }
+        
+        .device-info h6 {
+            color: var(--text-primary);
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .device-type {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .device-status {
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            border: 2px solid;
+        }
+        
+        .status-normal {
+            background: rgba(39, 174, 96, 0.15);
+            color: var(--success-color);
+            border-color: var(--success-color);
+        }
+        
+        .status-warning {
+            background: rgba(243, 156, 18, 0.15);
+            color: var(--warning-color);
+            border-color: var(--warning-color);
+        }
+        
+        .status-critical {
+            background: rgba(231, 76, 60, 0.15);
+            color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+        
+        .status-offline {
+            background: rgba(149, 165, 166, 0.15);
+            color: var(--text-muted);
+            border-color: var(--text-muted);
+        }
+        
+        .device-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        
+        .metric-item {
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--secondary-color);
+            line-height: 1;
+        }
+        
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+        
+        .metric-unit {
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+        
+        .device-chart {
+            height: 120px;
+            margin: 15px 0;
+        }
+        
+        .device-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .action-btn {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-muted);
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            font-size: 0.85rem;
+        }
+        
+        .action-btn:hover {
+            color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+        
+        .action-btn.danger:hover {
+            color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+        
+        .device-location {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+        }
+        
+        .device-last-seen {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+        
+        .connection-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        .connected { background: var(--success-color); animation: pulse 2s infinite; }
+        .disconnected { background: var(--accent-color); }
+        .unknown { background: var(--text-muted); }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .bulk-actions {
+            background: var(--surface-bg);
+            border-radius: var(--border-radius);
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+            display: none;
+        }
+        
+        .bulk-actions.show {
+            display: block;
+        }
+        
+        .device-modal .modal-content {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+        }
+        
+        .device-modal .modal-header {
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .device-modal .modal-footer {
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .form-control {
+            background: var(--surface-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+        
+        .form-control:focus {
+            background: var(--surface-bg);
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+            color: var(--text-primary);
+        }
+        
+        .device-health-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--surface-bg);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 5px 0;
+        }
+        
+        .health-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        .health-excellent { background: var(--success-color); }
+        .health-good { background: #2ecc71; }
+        .health-fair { background: var(--warning-color); }
+        .health-poor { background: var(--accent-color); }
+        
+        @media (max-width: 768px) {
+            .devices-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .filter-buttons {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .filter-btn {
+                text-align: center;
+            }
+            
+            .device-metrics {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .device-actions {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="main-container">
+            <!-- Header -->
+            <div class="header">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h1><i class="fas fa-microchip"></i> Device Management</h1>
+                        <p class="mb-0">Monitor, Configure & Manage IoT Devices</p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <div class="d-flex align-items-center justify-content-end">
+                            <span class="status-indicator status-online"></span>
+                            <span id="connection-status">Connected</span>
+                            <small class="ms-3">Devices: <span id="device-count">--</span></small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="container-fluid p-4">
+                <!-- Search and Filter Bar -->
+                <div class="device-search-bar">
+                    <div class="row align-items-center">
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text bg-transparent border-end-0">
+                                    <i class="fas fa-search text-muted"></i>
+                                </span>
+                                <input type="text" class="form-control border-start-0 ps-0" 
+                                       placeholder="Search devices..." id="device-search">
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="filter-buttons">
+                                <span class="text-muted me-3">Filter:</span>
+                                <button class="filter-btn active" onclick="filterDevices('all', event)">All</button>
+                                <button class="filter-btn" onclick="filterDevices('online', event)">Online</button>
+                                <button class="filter-btn" onclick="filterDevices('offline', event)">Offline</button>
+                                <button class="filter-btn" onclick="filterDevices('warning', event)">Warning</button>
+                                <button class="filter-btn" onclick="filterDevices('critical', event)">Critical</button>
+                                <div class="ms-auto">
+                                    <button class="btn btn-outline-primary btn-sm me-2" onclick="refreshDevices()">
+                                        <i class="fas fa-sync-alt"></i> Refresh
+                                    </button>
+                                    <button class="btn btn-success btn-sm" onclick="showAddDeviceModal()">
+                                        <i class="fas fa-plus"></i> Add Device
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bulk Actions (Hidden by default) -->
+                <div class="bulk-actions" id="bulk-actions">
+                    <div class="d-flex align-items-center gap-3">
+                        <span><strong id="selected-count">0</strong> devices selected</span>
+                        <button class="btn btn-outline-warning btn-sm" onclick="bulkAction('restart')">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button class="btn btn-outline-info btn-sm" onclick="bulkAction('configure')">
+                            <i class="fas fa-cog"></i> Configure
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" onclick="bulkAction('shutdown')">
+                            <i class="fas fa-power-off"></i> Shutdown
+                        </button>
+                        <button class="btn btn-secondary btn-sm ms-auto" onclick="clearSelection()">
+                            Clear Selection
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Devices Grid -->
+                <div class="devices-container">
+                    <div class="devices-grid" id="devices-grid">
+                        <!-- Devices will be loaded here -->
+                        <div class="loading-spinner"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="footer">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p>&copy; 2025 Digital Twin System | Device Management Interface</p>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <small>
+                            Last sync: <span id="last-sync">--</span> | 
+                            Update interval: <span id="update-interval">30s</span>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Device Modal -->
+    <div class="modal fade device-modal" id="addDeviceModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus-circle"></i> Add New Device
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="add-device-form">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="device-name" class="form-label">Device Name</label>
+                                    <input type="text" class="form-control" id="device-name" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="device-type" class="form-label">Device Type</label>
+                                    <select class="form-control" id="device-type" required>
+                                        <option value="">Select Type</option>
+                                        <option value="sensor">Sensor</option>
+                                        <option value="actuator">Actuator</option>
+                                        <option value="controller">Controller</option>
+                                        <option value="gateway">Gateway</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="device-location" class="form-label">Location</label>
+                                    <input type="text" class="form-control" id="device-location" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="device-ip" class="form-label">IP Address</label>
+                                    <input type="text" class="form-control" id="device-ip" 
+                                           placeholder="192.168.1.100" pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="device-description" class="form-label">Description</label>
+                            <textarea class="form-control" id="device-description" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" onclick="addDevice()">
+                        <i class="fas fa-plus"></i> Add Device
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Device Details Modal -->
+    <div class="modal fade device-modal" id="deviceDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="device-details-title">
+                        <i class="fas fa-microchip"></i> Device Details
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <canvas id="device-detail-chart" height="300"></canvas>
+                        </div>
+                        <div class="col-md-4">
+                            <div id="device-details-info">
+                                <!-- Device info will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-warning" onclick="restartDevice()">
+                        <i class="fas fa-redo"></i> Restart
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" onclick="configureDevice()">
+                        <i class="fas fa-cog"></i> Configure
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Device Management JavaScript
+        let socket;
+        let devices = [];
+        let filteredDevices = [];
+        let selectedDevices = new Set();
+        let currentFilter = 'all';
+        let deviceCharts = {};
+        let currentDeviceId = null;
+
+        // Initialize Device Management
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeSocket();
+            loadDevices();
+            initializeSearch();
+            startDeviceUpdates();
+            console.log('Device Management initializing...');
+        });
+
+        // WebSocket Connection
+        function initializeSocket() {
+            socket = io();
+            
+            socket.on('connect', function() {
+                updateConnectionStatus('Connected', 'online');
+            });
+            
+            socket.on('disconnect', function() {
+                updateConnectionStatus('Disconnected', 'error');
+            });
+            
+            socket.on('device_update', function(deviceData) {
+                updateDeviceInGrid(deviceData);
+            });
+            
+            socket.on('device_status_change', function(data) {
+                updateDeviceStatus(data.device_id, data.status);
+            });
+        }
+
+        // Load Devices
+        function loadDevices() {
+            const grid = document.getElementById('devices-grid');
+            grid.innerHTML = '<div class="loading-spinner"></div>';
+            
+            fetch('/api/devices')
+                .then(response => response.json())
+                .then(data => {
+                    devices = data;
+                    filteredDevices = [...devices];
+                    renderDevicesGrid();
+                    updateDeviceCount();
+                    updateLastSync();
+                })
+                .catch(error => {
+                    console.error('Error loading devices:', error);
+                    grid.innerHTML = '<p class="text-danger">Error loading devices. Please refresh.</p>';
+                });
+        }
+
+        // Render Devices Grid
+        function renderDevicesGrid() {
+            const grid = document.getElementById('devices-grid');
+            grid.innerHTML = '';
+
+            if (filteredDevices.length === 0) {
+                grid.innerHTML = '<p class="text-muted">No devices found matching current filter.</p>';
+                return;
+            }
+
+            filteredDevices.forEach(device => {
+                const deviceCard = createDeviceCard(device);
+                grid.appendChild(deviceCard);
+            });
+
+            // Initialize mini charts for each device
+            setTimeout(() => {
+                filteredDevices.forEach(device => {
+                    initializeDeviceChart(device.device_id);
+                });
+            }, 100);
+        }
+
+        // Create Device Card
+        function createDeviceCard(device) {
+            const card = document.createElement('div');
+            card.className = `device-card ${getStatusClass(device.status)}`;
+            card.dataset.deviceId = device.device_id;
+            card.dataset.status = device.status;
+            card.dataset.type = device.device_type;
+
+            const healthPercentage = Math.round((device.health_score || 0) * 100);
+            const healthClass = getHealthClass(healthPercentage);
+            
+            card.innerHTML = `
+                <div class="device-header">
+                    <div class="device-info">
+                        <h6>${device.name || device.device_id}</h6>
+                        <div class="device-type">${device.device_type}</div>
+                    </div>
+                    <div class="device-status status-${device.status}">${device.status}</div>
+                </div>
+                
+                <div class="device-location">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <span>${device.location || 'Unknown'}</span>
+                </div>
+                
+                <div class="device-metrics">
+                    <div class="metric-item">
+                        <div class="metric-value">${device.value || '--'}</div>
+                        <div class="metric-label">${device.unit || 'Value'}</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value">${healthPercentage}%</div>
+                        <div class="metric-label">Health</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value">${Math.round(Math.random() * 100)}%</div>
+                        <div class="metric-label">Uptime</div>
+                    </div>
+                </div>
+                
+                <div class="device-health-bar">
+                    <div class="health-fill ${healthClass}" style="width: ${healthPercentage}%"></div>
+                </div>
+                
+                <div class="device-chart">
+                    <canvas id="chart-${device.device_id}" height="60"></canvas>
+                </div>
+                
+                <div class="device-last-seen">
+                    <span class="connection-indicator ${device.status === 'offline' ? 'disconnected' : 'connected'}"></span>
+                    Last seen: ${formatTime(device.timestamp)}
+                </div>
+                
+                <div class="device-actions">
+                    <button class="action-btn" onclick="showDeviceDetails('${device.device_id}')">
+                        <i class="fas fa-eye"></i> Details
+                    </button>
+                    <button class="action-btn" onclick="configureDevice('${device.device_id}')">
+                        <i class="fas fa-cog"></i> Config
+                    </button>
+                    <button class="action-btn" onclick="restartDevice('${device.device_id}')">
+                        <i class="fas fa-redo"></i> Restart
+                    </button>
+                    <button class="action-btn danger" onclick="removeDevice('${device.device_id}')">
+                        <i class="fas fa-trash"></i> Remove
+                    </button>
+                </div>
+                
+                <div class="form-check position-absolute" style="top: 10px; left: 10px;">
+                    <input class="form-check-input" type="checkbox" value="${device.device_id}" 
+                           onchange="handleDeviceSelection(this)">
+                </div>
+            `;
+
+            return card;
+        }
+
+        // Initialize Device Mini Chart
+        function initializeDeviceChart(deviceId) {
+            const canvas = document.getElementById(`chart-${deviceId}`);
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            deviceCharts[deviceId] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 0,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { display: false },
+                        y: { display: false }
+                    },
+                    interaction: { intersect: false }
+                }
+            });
+
+            // Load initial chart data
+            loadDeviceChartData(deviceId);
+        }
+
+        // Load Device Chart Data
+        function loadDeviceChartData(deviceId) {
+            fetch(`/api/devices/${deviceId}/history?hours=1`)
+                .then(response => response.json())
+                .then(data => {
+                    const chart = deviceCharts[deviceId];
+                    if (chart && data.values) {
+                        chart.data.labels = data.timestamps || [];
+                        chart.data.datasets[0].data = data.values || [];
+                        chart.update('none');
+                    }
+                })
+                .catch(error => {
+                    console.error(`Error loading chart data for ${deviceId}:`, error);
+                });
+        }
+
+        // Utility Functions
+        function getStatusClass(status) {
+            switch (status) {
+                case 'normal': return 'normal';
+                case 'warning': return 'warning';
+                case 'critical': case 'anomaly': return 'critical';
+                case 'offline': return 'offline';
+                default: return 'normal';
+            }
+        }
+
+        function getHealthClass(percentage) {
+            if (percentage >= 90) return 'health-excellent';
+            if (percentage >= 70) return 'health-good';
+            if (percentage >= 50) return 'health-fair';
+            return 'health-poor';
+        }
+
+        function formatTime(timestamp) {
+            if (!timestamp) return 'Never';
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 60000) return 'Just now';
+            if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+            if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+            return date.toLocaleDateString();
+        }
+
+        function updateConnectionStatus(status, type) {
+            const statusElement = document.getElementById('connection-status');
+            const indicator = document.querySelector('.status-indicator');
+            
+            if (statusElement) statusElement.textContent = status;
+            if (indicator) {
+                indicator.className = `status-indicator status-${type}`;
+            }
+        }
+
+        function updateDeviceCount() {
+            document.getElementById('device-count').textContent = filteredDevices.length;
+        }
+
+        function updateLastSync() {
+            document.getElementById('last-sync').textContent = new Date().toLocaleTimeString();
+        }
+
+        // Search Functionality
+        function initializeSearch() {
+            const searchInput = document.getElementById('device-search');
+            searchInput.addEventListener('input', function(e) {
+                const searchTerm = e.target.value.toLowerCase().trim();
+                filterDevicesBySearch(searchTerm);
+            });
+        }
+
+        function filterDevicesBySearch(searchTerm) {
+            if (!searchTerm) {
+                filteredDevices = devices.filter(device => 
+                    currentFilter === 'all' || device.status === currentFilter
+                );
+            } else {
+                filteredDevices = devices.filter(device => {
+                    const matchesSearch = 
+                        (device.name && device.name.toLowerCase().includes(searchTerm)) ||
+                        device.device_id.toLowerCase().includes(searchTerm) ||
+                        (device.location && device.location.toLowerCase().includes(searchTerm)) ||
+                        device.device_type.toLowerCase().includes(searchTerm);
+                    
+                    const matchesFilter = currentFilter === 'all' || device.status === currentFilter;
+                    
+                    return matchesSearch && matchesFilter;
+                });
+            }
+            
+            renderDevicesGrid();
+            updateDeviceCount();
+        }
+
+        // Filter Functions
+        function filterDevices(filter, evt) {
+            currentFilter = filter;
+            
+            // Update button states
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            if (evt && evt.target) evt.target.classList.add('active');
+            
+            // Apply filter
+            const searchTerm = document.getElementById('device-search').value.toLowerCase().trim();
+            
+            if (filter === 'all') {
+                filteredDevices = devices;
+            } else {
+                filteredDevices = devices.filter(device => device.status === filter);
+            }
+            
+            // Apply search if exists
+            if (searchTerm) {
+                filterDevicesBySearch(searchTerm);
+            } else {
+                renderDevicesGrid();
+                updateDeviceCount();
+            }
+        }
+
+        // Device Actions
+        function refreshDevices() {
+            const refreshBtn = event.currentTarget;
+            const originalText = refreshBtn.innerHTML;
+            refreshBtn.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Refreshing...';
+            refreshBtn.disabled = true;
+            
+            loadDevices().then(() => {
+                refreshBtn.innerHTML = originalText;
+                refreshBtn.disabled = false;
+            });
+        }
+
+        function showAddDeviceModal() {
+            const modal = new bootstrap.Modal(document.getElementById('addDeviceModal'));
+            modal.show();
+        }
+
+        function addDevice() {
+            const form = document.getElementById('add-device-form');
+            const formData = new FormData(form);
+            
+            const deviceData = {
+                name: document.getElementById('device-name').value,
+                device_type: document.getElementById('device-type').value,
+                location: document.getElementById('device-location').value,
+                ip_address: document.getElementById('device-ip').value,
+                description: document.getElementById('device-description').value
+            };
+            
+            // Validate required fields
+            if (!deviceData.name || !deviceData.device_type || !deviceData.location) {
+                alert('Please fill in all required fields.');
+                return;
+            }
+            
+            fetch('/api/devices', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(deviceData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('addDeviceModal')).hide();
+                    form.reset();
+                    loadDevices();
+                    alert('Device added successfully!');
+                } else {
+                    alert('Error adding device: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error adding device:', error);
+                alert('Error adding device. Please try again.');
+            });
+        }
+
+        function showDeviceDetails(deviceId) {
+            currentDeviceId = deviceId;
+            const device = devices.find(d => d.device_id === deviceId);
+            if (!device) return;
+            
+            document.getElementById('device-details-title').innerHTML = 
+                `<i class="fas fa-microchip"></i> ${device.name || device.device_id}`;
+            
+            // Load detailed device information
+            loadDeviceDetails(deviceId);
+            
+            const modal = new bootstrap.Modal(document.getElementById('deviceDetailsModal'));
+            modal.show();
+        }
+
+        function loadDeviceDetails(deviceId) {
+            const infoContainer = document.getElementById('device-details-info');
+            const device = devices.find(d => d.device_id === deviceId);
+            
+            if (!device) return;
+            
+            infoContainer.innerHTML = `
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-header"><strong>Device Information</strong></div>
+                    <div class="card-body">
+                        <p><strong>ID:</strong> ${device.device_id}</p>
+                        <p><strong>Type:</strong> ${device.device_type}</p>
+                        <p><strong>Status:</strong> <span class="badge bg-${getStatusColor(device.status)}">${device.status}</span></p>
+                        <p><strong>Location:</strong> ${device.location || 'Unknown'}</p>
+                        <p><strong>Health Score:</strong> ${Math.round((device.health_score || 0) * 100)}%</p>
+                        <p><strong>Last Update:</strong> ${formatTime(device.timestamp)}</p>
+                    </div>
+                </div>
+                <div class="card bg-dark border-secondary">
+                    <div class="card-header"><strong>Recent Metrics</strong></div>
+                    <div class="card-body">
+                        <p><strong>Current Value:</strong> ${device.value || '--'} ${device.unit || ''}</p>
+                        <p><strong>Min Value:</strong> ${device.min_value || '--'}</p>
+                        <p><strong>Max Value:</strong> ${device.max_value || '--'}</p>
+                        <p><strong>Average:</strong> ${device.avg_value || '--'}</p>
+                    </div>
+                </div>
+            `;
+            
+            // Load detailed chart
+            loadDetailedChart(deviceId);
+        }
+
+        function loadDetailedChart(deviceId) {
+            const canvas = document.getElementById('device-detail-chart');
+            if (!canvas) return;
+            
+            fetch(`/api/devices/${deviceId}/history?hours=24`)
+                .then(response => response.json())
+                .then(data => {
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Destroy existing chart if exists
+                    if (window.detailChart) {
+                        window.detailChart.destroy();
+                    }
+                    
+                    window.detailChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: data.timestamps || [],
+                            datasets: [{
+                                label: 'Device Values',
+                                data: data.values || [],
+                                borderColor: '#3498db',
+                                backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { labels: { color: '#ecf0f1' } }
+                            },
+                            scales: {
+                                x: {
+                                    ticks: { color: '#ecf0f1' },
+                                    grid: { color: 'rgba(255,255,255,0.1)' }
+                                },
+                                y: {
+                                    ticks: { color: '#ecf0f1' },
+                                    grid: { color: 'rgba(255,255,255,0.1)' }
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading detailed chart:', error);
+                });
+        }
+
+        function getStatusColor(status) {
+            switch (status) {
+                case 'normal': return 'success';
+                case 'warning': return 'warning';
+                case 'critical': case 'anomaly': return 'danger';
+                case 'offline': return 'secondary';
+                default: return 'secondary';
+            }
+        }
+
+        function configureDevice(deviceId) {
+            alert(`Configure device ${deviceId} - This would open a configuration dialog.`);
+        }
+
+        function restartDevice(deviceId) {
+            if (confirm(`Are you sure you want to restart device ${deviceId}?`)) {
+                fetch(`/api/devices/${deviceId}/restart`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Device restart command sent successfully!');
+                        } else {
+                            alert('Error restarting device: ' + (data.error || 'Unknown error'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error restarting device:', error);
+                        alert('Error sending restart command.');
+                    });
+            }
+        }
+
+        function removeDevice(deviceId) {
+            if (confirm(`Are you sure you want to remove device ${deviceId}? This action cannot be undone.`)) {
+                fetch(`/api/devices/${deviceId}`, { method: 'DELETE' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            loadDevices();
+                            alert('Device removed successfully!');
+                        } else {
+                            alert('Error removing device: ' + (data.error || 'Unknown error'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error removing device:', error);
+                        alert('Error removing device.');
+                    });
+            }
+        }
+
+        // Bulk Actions
+        function handleDeviceSelection(checkbox) {
+            if (checkbox.checked) {
+                selectedDevices.add(checkbox.value);
+            } else {
+                selectedDevices.delete(checkbox.value);
+            }
+            
+            updateBulkActions();
+        }
+
+        function updateBulkActions() {
+            const bulkActions = document.getElementById('bulk-actions');
+            const selectedCount = document.getElementById('selected-count');
+            
+            if (selectedDevices.size > 0) {
+                bulkActions.classList.add('show');
+                selectedCount.textContent = selectedDevices.size;
+            } else {
+                bulkActions.classList.remove('show');
+            }
+        }
+
+        function clearSelection() {
+            selectedDevices.clear();
+            document.querySelectorAll('.form-check-input').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            updateBulkActions();
+        }
+
+        function bulkAction(action) {
+            if (selectedDevices.size === 0) {
+                alert('No devices selected.');
+                return;
+            }
+            
+            const deviceIds = Array.from(selectedDevices);
+            const actionText = action.charAt(0).toUpperCase() + action.slice(1);
+            
+            if (confirm(`Are you sure you want to ${action} ${deviceIds.length} selected devices?`)) {
+                fetch(`/api/devices/bulk/${action}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_ids: deviceIds })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`${actionText} command sent to ${deviceIds.length} devices!`);
+                        clearSelection();
+                        loadDevices();
+                    } else {
+                        alert(`Error performing ${action}: ` + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error(`Error performing ${action}:`, error);
+                    alert(`Error performing ${action}.`);
+                });
+            }
+        }
+
+        // Real-time Updates
+        function updateDeviceInGrid(deviceData) {
+            const deviceCard = document.querySelector(`[data-device-id="${deviceData.device_id}"]`);
+            if (!deviceCard) return;
+            
+            // Update device in data array
+            const deviceIndex = devices.findIndex(d => d.device_id === deviceData.device_id);
+            if (deviceIndex !== -1) {
+                devices[deviceIndex] = { ...devices[deviceIndex], ...deviceData };
+            }
+            
+            // Update visual elements
+            const statusElement = deviceCard.querySelector('.device-status');
+            if (statusElement) {
+                statusElement.textContent = deviceData.status;
+                statusElement.className = `device-status status-${deviceData.status}`;
+            }
+            
+            // Update card class
+            deviceCard.className = `device-card ${getStatusClass(deviceData.status)}`;
+            
+            // Update chart if exists
+            if (deviceCharts[deviceData.device_id]) {
+                loadDeviceChartData(deviceData.device_id);
+            }
+        }
+
+        function updateDeviceStatus(deviceId, status) {
+            const deviceCard = document.querySelector(`[data-device-id="${deviceId}"]`);
+            if (!deviceCard) return;
+            
+            deviceCard.dataset.status = status;
+            deviceCard.className = `device-card ${getStatusClass(status)}`;
+            
+            const statusElement = deviceCard.querySelector('.device-status');
+            if (statusElement) {
+                statusElement.textContent = status;
+                statusElement.className = `device-status status-${status}`;
+            }
+        }
+
+        // Auto Updates
+        function startDeviceUpdates() {
+            // Refresh device list every 2 minutes
+            setInterval(() => {
+                loadDevices();
+            }, 120000);
+            
+            // Update charts every 30 seconds
+            setInterval(() => {
+                Object.keys(deviceCharts).forEach(deviceId => {
+                    loadDeviceChartData(deviceId);
+                });
+            }, 30000);
+        }
+
+        // Error Handling
+        window.addEventListener('error', function(e) {
+            console.error('Device Management Error:', e.error);
+        });
+    </script>
+</body>
+</html>
