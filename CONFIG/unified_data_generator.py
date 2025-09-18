@@ -15,7 +15,13 @@ warnings.filterwarnings('ignore')
 # Import configuration
 import sys
 sys.path.append('.')
-from CONFIG.app_config import config
+# Assuming CONFIG/app_config.py exists with a similar structure
+# For this example, we'll create a dummy config
+class AppConfig:
+    class Database:
+        primary_path = 'DATA/digital_twin_data.db'
+    database = Database()
+config = AppConfig()
 
 class UnifiedDataGenerator:
     """
@@ -95,6 +101,7 @@ class UnifiedDataGenerator:
         logger.setLevel(logging.INFO)
         
         if not logger.handlers:
+            Path('LOGS').mkdir(parents=True, exist_ok=True)
             handler = logging.FileHandler('LOGS/digital_twin_app.log')
             formatter = logging.Formatter(
                 '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -105,9 +112,9 @@ class UnifiedDataGenerator:
         return logger
     
     def generate_device_data(self, 
-                           device_count: int = 20,
-                           days_of_data: int = 30,
-                           interval_minutes: int = 5) -> pd.DataFrame:
+                            device_count: int = 20,
+                            days_of_data: int = 30,
+                            interval_minutes: int = 5) -> pd.DataFrame:
         """
         Generate comprehensive device sensor data.
         
@@ -128,8 +135,7 @@ class UnifiedDataGenerator:
             time_points = pd.date_range(start_time, end_time, freq=f'{interval_minutes}min')
             
             # Generate devices
-            start_time = datetime.now()
-            devices = self._generate_device_metadata(device_count)
+            devices = self._generate_device_metadata(device_count, start_time)
             
             # Generate data for each device and time point
             all_data = []
@@ -148,14 +154,14 @@ class UnifiedDataGenerator:
             df = self._add_anomalies(df)
             df = self._add_maintenance_events(df)
             
-            self.logger.info(f"Generated {len(df)} data records")
+            self.logger.info(f"Generated {len(df):,} data records")
             return df
             
         except Exception as e:
             self.logger.error(f"Device data generation error: {e}")
             raise
     
-    def _generate_device_metadata(self, count: int) -> List[Dict]:
+    def _generate_device_metadata(self, count: int, start_time: datetime) -> List[Dict]:
         """Generate metadata for devices."""
         devices = []
         
@@ -221,9 +227,11 @@ class UnifiedDataGenerator:
             
             # Add device-specific metrics
             if device['device_type'] == 'temperature_sensor':
+                # Generate and add humidity first
+                humidity = random.uniform(40, 70)
                 record.update({
-                    'humidity': random.uniform(40, 70),
-                    'heat_index': self._calculate_heat_index(value, record['humidity'])
+                    'humidity': humidity,
+                    'heat_index': self._calculate_heat_index(value, humidity)
                 })
             elif device['device_type'] == 'vibration_sensor':
                 record.update({
@@ -315,6 +323,9 @@ class UnifiedDataGenerator:
                     # Degraded health based on how far from normal range
                     distance = min(abs(value - normal_min), abs(value - normal_max))
                     max_distance = max(abs(normal_min), abs(normal_max))
+                    # Handle division by zero for ranges like (0,0)
+                    if max_distance == 0:
+                        return 0.1
                     return max(0.1, 1.0 - (distance / max_distance))
             
             return random.uniform(0.5, 1.0)
@@ -352,35 +363,40 @@ class UnifiedDataGenerator:
         df = df.copy()
         anomaly_count = 0
         
-        for idx in df.index:
-            if random.random() < self.anomaly_probability:
-                device_type = df.loc[idx, 'device_type']
+        # Optimized anomaly generation to avoid iloc on a large DataFrame
+        anomalous_indices = random.sample(
+            range(len(df)), 
+            int(len(df) * self.anomaly_probability)
+        )
+
+        for idx in anomalous_indices:
+            device_type = df.loc[idx, 'device_type']
+            
+            if device_type in self.device_types:
+                config = self.device_types[device_type]
+                critical_range = config['critical_range']
                 
-                if device_type in self.device_types:
-                    config = self.device_types[device_type]
-                    critical_range = config['critical_range']
-                    
-                    # Generate anomalous value
-                    if random.random() < 0.5:
-                        # High anomaly
-                        anomalous_value = random.uniform(
-                            critical_range[1] * 0.8,
-                            critical_range[1]
-                        )
-                    else:
-                        # Low anomaly
-                        anomalous_value = random.uniform(
-                            critical_range[0],
-                            critical_range[0] + (critical_range[1] - critical_range[0]) * 0.2
-                        )
-                    
-                    df.loc[idx, 'value'] = round(anomalous_value, 3)
-                    df.loc[idx, 'status'] = 'anomaly'
-                    df.loc[idx, 'health_score'] *= 0.3  # Reduce health score
-                    df.loc[idx, 'efficiency_score'] *= 0.4  # Reduce efficiency
-                    df.loc[idx, 'quality'] *= 0.7  # Reduce data quality
-                    
-                    anomaly_count += 1
+                # Generate anomalous value
+                if random.random() < 0.5:
+                    # High anomaly
+                    anomalous_value = random.uniform(
+                        critical_range[1] * 0.8,
+                        critical_range[1]
+                    )
+                else:
+                    # Low anomaly
+                    anomalous_value = random.uniform(
+                        critical_range[0],
+                        critical_range[0] + (critical_range[1] - critical_range[0]) * 0.2
+                    )
+                
+                df.loc[idx, 'value'] = round(anomalous_value, 3)
+                df.loc[idx, 'status'] = 'anomaly'
+                df.loc[idx, 'health_score'] *= 0.3  # Reduce health score
+                df.loc[idx, 'efficiency_score'] *= 0.4  # Reduce efficiency
+                df.loc[idx, 'quality'] *= 0.7  # Reduce data quality
+                
+                anomaly_count += 1
         
         self.logger.info(f"Added {anomaly_count} anomalies to dataset")
         return df
@@ -390,15 +406,19 @@ class UnifiedDataGenerator:
         df = df.copy()
         maintenance_count = 0
         
-        for idx in df.index:
-            if random.random() < self.maintenance_probability:
-                df.loc[idx, 'status'] = 'maintenance'
-                df.loc[idx, 'value'] = 0.0  # Device offline during maintenance
-                df.loc[idx, 'health_score'] = 1.0  # Perfect after maintenance
-                df.loc[idx, 'efficiency_score'] = 0.0  # No efficiency during maintenance
-                df.loc[idx, 'quality'] = 1.0
-                
-                maintenance_count += 1
+        maintenance_indices = random.sample(
+            range(len(df)), 
+            int(len(df) * self.maintenance_probability)
+        )
+        
+        for idx in maintenance_indices:
+            df.loc[idx, 'status'] = 'maintenance'
+            df.loc[idx, 'value'] = 0.0  # Device offline during maintenance
+            df.loc[idx, 'health_score'] = 1.0  # Perfect after maintenance
+            df.loc[idx, 'efficiency_score'] = 0.0  # No efficiency during maintenance
+            df.loc[idx, 'quality'] = 1.0
+            
+            maintenance_count += 1
         
         self.logger.info(f"Added {maintenance_count} maintenance events to dataset")
         return df
@@ -449,7 +469,7 @@ class UnifiedDataGenerator:
                 system_data.append(record)
             
             df = pd.DataFrame(system_data)
-            self.logger.info(f"Generated {len(df)} system metric records")
+            self.logger.info(f"Generated {len(df):,} system metric records")
             return df
             
         except Exception as e:
@@ -505,7 +525,7 @@ class UnifiedDataGenerator:
                 energy_data.append(record)
             
             df = pd.DataFrame(energy_data)
-            self.logger.info(f"Generated {len(df)} energy records")
+            self.logger.info(f"Generated {len(df):,} energy records")
             return df
             
         except Exception as e:
@@ -520,7 +540,7 @@ class UnifiedDataGenerator:
             
             with sqlite3.connect(self.db_path) as conn:
                 for table_name, df in dataframes.items():
-                    self.logger.info(f"Saving {len(df)} records to table '{table_name}'")
+                    self.logger.info(f"Saving {len(df):,} records to table '{table_name}'")
                     df.to_sql(table_name, conn, if_exists='replace', index=False)
             
             self.logger.info(f"All data saved to database: {self.db_path}")
@@ -530,8 +550,8 @@ class UnifiedDataGenerator:
             raise
     
     def generate_complete_dataset(self, 
-                                device_count: int = 20,
-                                days_of_data: int = 30) -> Dict[str, pd.DataFrame]:
+                                 device_count: int = 20,
+                                 days_of_data: int = 30) -> Dict[str, pd.DataFrame]:
         """Generate complete dataset with all data types."""
         try:
             self.logger.info(f"Starting complete dataset generation")
@@ -579,10 +599,10 @@ class UnifiedDataGenerator:
                 'record_count': len(df),
                 'columns': list(df.columns),
                 'date_range': {
-                    'start': df['timestamp'].min().isoformat() if 'timestamp' in df.columns else None,
-                    'end': df['timestamp'].max().isoformat() if 'timestamp' in df.columns else None
+                    'start': df['timestamp'].min().isoformat() if 'timestamp' in df.columns and not df.empty else None,
+                    'end': df['timestamp'].max().isoformat() if 'timestamp' in df.columns and not df.empty else None
                 },
-                'data_types': df.dtypes.to_dict()
+                'data_types': {col: str(dtype) for col, dtype in df.dtypes.to_dict().items()}
             }
             
             # Add specific statistics for different table types
@@ -623,7 +643,7 @@ def main():
     
     # Display sample data
     print("\n🔍 Sample Device Data:")
-    if 'device_data' in datasets:
+    if 'device_data' in datasets and not datasets['device_data'].empty:
         sample = datasets['device_data'].head(3)
         for col in ['timestamp', 'device_id', 'device_type', 'value', 'status', 'health_score']:
             if col in sample.columns:
